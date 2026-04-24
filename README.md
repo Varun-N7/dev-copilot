@@ -40,9 +40,3 @@ python manage.py runserver
 | MONGO_URI | MongoDB connection URI | Yes |
 | MONGO_DB_NAME | MongoDB database name | Yes |
 
-## Progress
-
-- Day 1 — Foundation & ingestion pipeline ✅
-- Day 2 — RAG retrieval + Django API 🔜
-- Day 3 — Tool calling + agent executor 🔜
-- Day 4 — Streaming, UI, webhooks & tests 🔜
