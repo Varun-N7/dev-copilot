@@ -67,6 +67,23 @@ Ask a question about an indexed repository.
 }
 ```
 
+### POST /api/query/stream
+Stream an answer token by token using SSE.
+**Request:**
+```json
+{
+  "repo_id": "7e3d4d9940b1",
+  "question": "How does routing work?"
+}
+```
+**Response:** Server-Sent Events stream of tokens.
+
+### POST /api/webhook
+GitHub webhook endpoint for auto re-indexing on push.
+**Request:** GitHub push event payload.
+**Response:** `OK`
+
+
 ## Example curl commands
 
 ### Index a repo
