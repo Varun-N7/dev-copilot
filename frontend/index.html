@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dev Copilot</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #0d1117; color: #e6edf3; display: flex; height: 100vh; }
+    #sidebar { width: 280px; border-right: 1px solid #30363d; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+    #sidebar h1 { font-size: 16px; color: #58a6ff; }
+    #sidebar input { width: 100%; background: #161b22; border: 1px solid #30363d; color: #e6edf3; padding: 8px; border-radius: 6px; font-family: monospace; font-size: 13px; }
+    #sidebar button { background: #238636; color: #fff; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-family: monospace; }
+    #sidebar button:hover { background: #2ea043; }
+    #status { font-size: 12px; color: #8b949e; }
+    #main { flex: 1; display: flex; flex-direction: column; }
+    #messages { flex: 1; overflow-y: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+    .msg { padding: 12px 16px; border-radius: 8px; font-size: 14px; line-height: 1.6; max-width: 90%; }
+    .user { background: #1f6feb33; align-self: flex-end; border: 1px solid #1f6feb; }
+    .assistant { background: #161b22; align-self: flex-start; border: 1px solid #30363d; white-space: pre-wrap; }
+    .sources { font-size: 11px; color: #8b949e; margin-top: 6px; }
+    #input-row { display: flex; gap: 8px; padding: 1rem 1.5rem; border-top: 1px solid #30363d; }
+    #input-row input { flex: 1; background: #161b22; border: 1px solid #30363d; color: #e6edf3; padding: 10px 14px; border-radius: 6px; font-family: monospace; font-size: 14px; }
+    #input-row button { background: #58a6ff; color: #0d1117; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <h1>Dev Copilot</h1>
+    <input id="repo-url" type="text" placeholder="GitHub repo URL" />
+    <button onclick="indexRepo()">Index Repo</button>
+    <div id="status"></div>
+  </div>
+  <div id="main">
+    <div id="messages"></div>
+    <div id="input-row">
+      <input id="question" type="text" placeholder="Ask about the codebase..." onkeydown="if(event.key==='Enter') ask()" />
+      <button onclick="ask()">Ask</button>
+    </div>
+  </div>
+  <script>
+    let repoId = null;
+    async function indexRepo() {
+      const url = document.getElementById("repo-url").value.trim();
+      if (!url) return;
+      document.getElementById("status").textContent = "Indexing...";
+      const res = await fetch("http://localhost:8000/api/index", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({repo_url: url})});
+      const data = await res.json();
+      repoId = data.repo_id;
+      document.getElementById("status").textContent = `Repo ID: ${repoId} — indexing in background`;
+    }
+    async function ask() {
+      const q = document.getElementById("question").value.trim();
+      if (!q || !repoId) return;
+      document.getElementById("question").value = "";
+      addMsg(q, "user");
+      const msgEl = addMsg("", "assistant");
+      const res = await fetch("http://localhost:8000/api/query/stream", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({repo_id: repoId, question: q})});
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let sources = [];
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        const lines = decoder.decode(value).split("\n");
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const obj = JSON.parse(line.slice(6));
+            if (obj.type === "token") msgEl.querySelector(".text").textContent += obj.text;
+            if (obj.type === "sources") sources = obj.sources;
+            if (obj.type === "done") {
+              const s = document.createElement("div");
+              s.className = "sources";
+              s.textContent = "Sources: " + sources.map(x => x.filepath).join(", ");
+              msgEl.appendChild(s);
+            }
+          } catch {}
+        }
+      }
+    }
+    function addMsg(text, role) {
+      const div = document.createElement("div");
+      div.className = `msg ${role}`;
+      const t = document.createElement("span");
+      t.className = "text";
+      t.textContent = text;
+      div.appendChild(t);
+      document.getElementById("messages").appendChild(div);
+      div.scrollIntoView();
+      return div;
+    }
+  </script>
+</body>
+</html>
